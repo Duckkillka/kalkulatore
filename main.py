@@ -177,6 +177,37 @@ class GeneExpressionAnalyzer:
             ax.legend()
         ax.grid(True)
 
+    def save_plot(self, fig, gene_id, plot_type):
+        """Сохраняет график в файл.
+
+        Args:
+            fig (matplotlib.figure.Figure): Фигура для сохранения
+            gene_id (str): Идентификатор гена
+            plot_type (str): Тип графика ("combined", "tumor" или "normal")
+        """
+        # Определение предлагаемого имени файла
+        file_types = [
+            ('PNG Image', '*.png'),
+            ('PDF Document', '*.pdf'),
+            ('SVG Vector', '*.svg'),
+            ('All Files', '*.*')
+        ]
+
+        # Создание диалогового окна сохранения
+        file_path = filedialog.asksaveasfilename(
+            title="Сохранить график как",
+            defaultextension=".png",
+            filetypes=file_types,
+            initialfile=f"{gene_id}_{plot_type}"
+        )
+
+        if file_path:
+            try:
+                fig.savefig(file_path, bbox_inches='tight', dpi=300)
+                tk.messagebox.showinfo("Успех", f"График успешно сохранен в:\n{file_path}")
+            except Exception as e:
+                tk.messagebox.showerror("Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+
     def show_gene_plot(self, plot_type):
         """Отображает окно с графиком распределения экспрессии гена.
 
@@ -208,9 +239,25 @@ class GeneExpressionAnalyzer:
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
+        # Фрейм для кнопок
+        button_frame = ttk.Frame(plot_window)
+        button_frame.pack(pady=10)
+
+        # Кнопка сохранения графика
+        save_button = ttk.Button(
+            button_frame,
+            text="Сохранить график",
+            command=lambda: self.save_plot(fig, selected_gene, plot_type)
+        )
+        save_button.pack(side=tk.LEFT, padx=5)
+
         # Кнопка закрытия окна
-        close_button = ttk.Button(plot_window, text="Закрыть", command=plot_window.destroy)
-        close_button.pack(pady=10)
+        close_button = ttk.Button(
+            button_frame,
+            text="Закрыть",
+            command=plot_window.destroy
+        )
+        close_button.pack(side=tk.LEFT, padx=5)
 
 
 if __name__ == "__main__":
