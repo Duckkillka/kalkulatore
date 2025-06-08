@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 import numpy as np
 from scipy.stats import norm
 
@@ -23,21 +23,40 @@ class GeneExpressionAnalyzer:
         """
         self.root = root
         self.root.title("Gene Expression Analyzer")
-        self.root.geometry("500x300")
+        self.root.geometry("600x400")
 
-        self.df = None  # DataFrame для хранения загруженных данных
+        self.df_normal = None  # DataFrame для нормальных данных
+        self.df_tumor = None  # DataFrame для опухолевых данных
+        self.df_medians = None  # DataFrame с медианными значениями
 
         self.create_widgets()
 
     def create_widgets(self):
         """Создает и размещает все элементы интерфейса в главном окне."""
-        # Кнопка для загрузки файла
-        ttk.Label(self.root, text="1. Сначала загрузите CSV файл с данными").pack(pady=5)
-        self.load_button = ttk.Button(self.root, text="Загрузить CSV файл", command=self.load_csv)
-        self.load_button.pack(pady=5)
+        # Фрейм для кнопок загрузки
+        load_frame = ttk.Frame(self.root)
+        load_frame.pack(pady=10)
+
+        # Кнопка для загрузки normal файла
+        ttk.Label(load_frame, text="1. Загрузите файл normal.csv:").grid(row=0, column=0, padx=5, pady=5)
+        self.load_normal_button = ttk.Button(load_frame, text="Загрузить normal.csv",
+                                             command=lambda: self.load_csv("normal"))
+        self.load_normal_button.grid(row=1, column=0, padx=5, pady=5)
+
+        # Кнопка для загрузки tumor файла
+        ttk.Label(load_frame, text="2. Загрузите файл tumor.csv:").grid(row=0, column=1, padx=5, pady=5)
+        self.load_tumor_button = ttk.Button(load_frame, text="Загрузить tumor.csv",
+                                            command=lambda: self.load_csv("tumor"))
+        self.load_tumor_button.grid(row=1, column=1, padx=5, pady=5)
+
+        # Кнопка для загрузки файла с медианами
+        ttk.Label(load_frame, text="3. Загрузите файл с медианами:").grid(row=0, column=2, padx=5, pady=5)
+        self.load_medians_button = ttk.Button(load_frame, text="Загрузить медианы",
+                                              command=lambda: self.load_csv("medians"))
+        self.load_medians_button.grid(row=1, column=2, padx=5, pady=5)
 
         # Выбор гена
-        ttk.Label(self.root, text="2. Выберите ген для анализа:").pack(pady=5)
+        ttk.Label(self.root, text="4. Выберите ген для анализа:").pack(pady=5)
         self.gene_combobox = ttk.Combobox(self.root, state="readonly")
         self.gene_combobox.pack(pady=5)
 
@@ -71,48 +90,86 @@ class GeneExpressionAnalyzer:
         self.normal_button.pack(side=tk.LEFT, padx=5)
 
         # Статус загрузки
-        self.status_label = ttk.Label(self.root, text="Файл не загружен", foreground="red")
+        self.status_label = ttk.Label(self.root, text="Файлы не загружены", foreground="red")
         self.status_label.pack(pady=5)
 
-    def load_csv(self):
+    def load_csv(self, file_type):
         """Загружает CSV-файл с данными экспрессии генов.
 
-        Открывает диалоговое окно для выбора файла, загружает данные в DataFrame
-        и активирует элементы интерфейса для работы с данными.
+        Args:
+            file_type (str): Тип файла ("normal", "tumor" или "medians")
         """
         file_path = filedialog.askopenfilename(
-            title="Выберите CSV файл",
+            title=f"Выберите {file_type} CSV файл",
             filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
         )
 
         if file_path:
             try:
                 # Загрузка данных из CSV
-                self.df = pd.read_csv(file_path)
-                # Заполнение выпадающего списка gene_id
-                self.gene_combobox['values'] = self.df['gene_id'].tolist()
-                # Активация кнопок
-                self.combined_button['state'] = tk.NORMAL
-                self.tumor_button['state'] = tk.NORMAL
-                self.normal_button['state'] = tk.NORMAL
-                # Обновление статуса
-                self.status_label.config(text=f"Загружен файл: {file_path.split('/')[-1]}", foreground="green")
+                if file_type == "normal":
+                    self.df_normal = pd.read_csv(file_path)
+                    self.status_label.config(text=f"Загружен normal файл: {file_path.split('/')[-1]}",
+                                             foreground="green")
+                elif file_type == "tumor":
+                    self.df_tumor = pd.read_csv(file_path)
+                    self.status_label.config(text=f"Загружен tumor файл: {file_path.split('/')[-1]}",
+                                             foreground="green")
+                elif file_type == "medians":
+                    self.df_medians = pd.read_csv(file_path)
+                    self.status_label.config(text=f"Загружен файл с медианами: {file_path.split('/')[-1]}",
+                                             foreground="green")
+
+                # Если все файлы загружены, активируем интерфейс
+                if self.df_normal is not None and self.df_tumor is not None and self.df_medians is not None:
+                    # Получаем список генов, которые есть во всех трех файлах
+                    common_genes = set(self.df_normal['gene_id']).intersection(
+                        set(self.df_tumor['gene_id'])).intersection(
+                        set(self.df_medians['gene_id']))
+
+                    if len(common_genes) == 0:
+                        messagebox.showerror("Ошибка", "Нет общих генов во всех трех файлах")
+                        return
+
+                    # Заполняем выпадающий список
+                    self.gene_combobox['values'] = sorted(common_genes)
+                    # Активируем кнопки
+                    self.combined_button['state'] = tk.NORMAL
+                    self.tumor_button['state'] = tk.NORMAL
+                    self.normal_button['state'] = tk.NORMAL
+
+                    self.status_label.config(text="Все файлы загружены. Выберите ген для анализа.", foreground="green")
+
             except Exception as e:
                 # Обработка ошибок загрузки
                 self.status_label.config(text=f"Ошибка загрузки файла: {str(e)}", foreground="red")
 
-    def generate_normal_distribution(self, median, size=1000):
-        """Генерирует нормальное распределение на основе медианного значения.
+    def extract_expression_values(self, df, gene_id):
+        """Извлекает значения экспрессии для заданного гена из DataFrame.
 
         Args:
-            median (float): Медианное значение для распределения
-            size (int): Количество генерируемых точек (по умолчанию 1000)
+            df (pd.DataFrame): DataFrame с данными экспрессии
+            gene_id (str): Идентификатор гена
 
         Returns:
-            np.ndarray: Массив сгенерированных значений
+            np.ndarray: Массив значений экспрессии
         """
-        std = median * 0.1 if median != 0 else 0.1  # Стандартное отклонение как 10% от медианы
-        return np.random.normal(loc=median, scale=std, size=size)
+        # Находим строку с нужным геном
+        gene_row = df[df['gene_id'] == gene_id].iloc[0]
+
+        # Извлекаем все столбцы с экспрессией (исключаем gene_id и другие нечисловые столбцы)
+        expression_columns = [col for col in df.columns if col.startswith(('tpm_', 'amy_norm_', 'ant_norm_',
+                                                                           'cau_norm_', 'cor_norm_', 'fro_norm_',
+                                                                           'hip_norm_', 'hyp_norm_', 'nuc_norm_',
+                                                                           'put_norm_', 'sub_norm_'))]
+
+        # Получаем значения экспрессии
+        expression_values = gene_row[expression_columns].values.astype(float)
+
+        # Удаляем нулевые значения (если нужно)
+        expression_values = expression_values[expression_values > 0]
+
+        return expression_values
 
     def plot_gene_distribution(self, gene_id, ax, plot_type="combined"):
         """Строит график распределения экспрессии гена.
@@ -122,12 +179,14 @@ class GeneExpressionAnalyzer:
             ax (matplotlib.axes.Axes): Ось для построения графика
             plot_type (str): Тип графика ("combined", "tumor" или "normal")
         """
-        # Получение данных для выбранного гена
-        gene_data = self.df[self.df['gene_id'] == gene_id].iloc[0]
+        # Получаем данные экспрессии
+        normal_data = self.extract_expression_values(self.df_normal, gene_id)
+        tumor_data = self.extract_expression_values(self.df_tumor, gene_id)
 
-        # Генерация данных распределений
-        tumor_data = self.generate_normal_distribution(gene_data['median_tum'])
-        norm_data = self.generate_normal_distribution(gene_data['median_norm'])
+        # Получаем медианные значения
+        median_row = self.df_medians[self.df_medians['gene_id'] == gene_id].iloc[0]
+        median_norm = median_row['median_norm']
+        median_tum = median_row['median_tum']
 
         # Очистка предыдущего графика
         ax.clear()
@@ -140,15 +199,15 @@ class GeneExpressionAnalyzer:
 
         # Построение гистограммы для нормальных данных (если нужно)
         if plot_type in ["combined", "normal"]:
-            ax.hist(norm_data, bins=30, alpha=0.5 if plot_type == "combined" else 0.7,
+            ax.hist(normal_data, bins=30, alpha=0.5 if plot_type == "combined" else 0.7,
                     color='blue', label='Normal', density=True)
-            norm_kde = norm(np.median(norm_data), norm_data.std())
+            norm_kde = norm(np.median(normal_data), normal_data.std())
 
         # Определение диапазона значений для оси X
-        x_min = min(np.min(tumor_data), np.min(norm_data)) if plot_type == "combined" else (
-            np.min(tumor_data) if plot_type == "tumor" else np.min(norm_data))
-        x_max = max(np.max(tumor_data), np.max(norm_data)) if plot_type == "combined" else (
-            np.max(tumor_data) if plot_type == "tumor" else np.max(norm_data))
+        x_min = min(np.min(tumor_data), np.min(normal_data)) if plot_type == "combined" else (
+            np.min(tumor_data) if plot_type == "tumor" else np.min(normal_data))
+        x_max = max(np.max(tumor_data), np.max(normal_data)) if plot_type == "combined" else (
+            np.max(tumor_data) if plot_type == "tumor" else np.max(normal_data))
 
         x = np.linspace(x_min - 1, x_max + 1, 1000)
 
@@ -163,11 +222,11 @@ class GeneExpressionAnalyzer:
         # Формирование заголовка
         title = f'Gene: {gene_id}\n'
         if plot_type in ["combined", "tumor"]:
-            title += f'Tumor median: {gene_data["median_tum"]:.4f}'
+            title += f'Tumor median: {median_tum:.4f}'
         if plot_type == "combined":
             title += ', '
         if plot_type in ["combined", "normal"]:
-            title += f'Normal median: {gene_data["median_norm"]:.4f}'
+            title += f'Normal median: {median_norm:.4f}'
 
         # Настройка внешнего вида графика
         ax.set_title(title)
@@ -204,9 +263,9 @@ class GeneExpressionAnalyzer:
         if file_path:
             try:
                 fig.savefig(file_path, bbox_inches='tight', dpi=300)
-                tk.messagebox.showinfo("Успех", f"График успешно сохранен в:\n{file_path}")
+                messagebox.showinfo("Успех", f"График успешно сохранен в:\n{file_path}")
             except Exception as e:
-                tk.messagebox.showerror("Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
+                messagebox.showerror("Ошибка", f"Не удалось сохранить файл:\n{str(e)}")
 
     def show_gene_plot(self, plot_type):
         """Отображает окно с графиком распределения экспрессии гена.
@@ -215,7 +274,7 @@ class GeneExpressionAnalyzer:
             plot_type (str): Тип графика ("combined", "tumor" или "normal")
         """
         selected_gene = self.gene_combobox.get()
-        if not selected_gene or self.df is None:
+        if not selected_gene or self.df_normal is None or self.df_tumor is None or self.df_medians is None:
             return
 
         # Заголовки для разных типов графиков
